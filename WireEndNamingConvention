@@ -13,7 +13,7 @@ namespace ExternalTool
     {
         public bool GeneralNoteFlag { get; set; } = false;
         private string ConnectionString { get; set; } = "";
-        public bool CorrectNumbering { get; set; } = false;
+        private bool CorrectNumbering { get; set; } = false;
 
         public WireEndNamingConventionButton(string ConnectionString)
         {
