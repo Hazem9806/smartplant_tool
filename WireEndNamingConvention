@@ -1,0 +1,349 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace ExternalTool
+{
+    public partial class WireEndNamingConventionButton : Form
+    {
+        public bool GeneralNoteFlag { get; set; } = false;
+        private string ConnectionString { get; set; } = "";
+        public bool CorrectNumbering { get; set; } = false;
+
+        public WireEndNamingConventionButton(string ConnectionString)
+        {
+            InitializeComponent();
+            this.ConnectionString = ConnectionString;
+        }
+
+        private void buPreview_Click(object sender, EventArgs e)
+        {
+
+            //Creates Temporary Table To be able to Preview Suggested Renaming to the User
+            string SQLSuggestedWireEndNamingConvention =
+                    "select  distinct  " + "\n" +
+                    "cable_num, "+ "\n" +
+                    "panel_sub_category.PANEL_SUB_CATEGORY_NAME left_panel_type, " + "\n" +
+                    "left_panel.panel_name left_panel, " + "\n" +
+                    "left_strip.strip_name left_strip, " + "\n" +
+                    "left_term.term_num left_term, " + "\n" +
+
+                    "panel_sub_category2.PANEL_SUB_CATEGORY_NAME right_panel_type, " + "\n" +
+                    "right_panel.panel_name right_panel, " + "\n" +
+                    "right_strip.strip_name right_strip, " + "\n" +
+                    "right_term.term_num right_term, " + "\n" +
+
+
+                    (
+                    (listBox1.SelectedIndex == 0) ?
+                    "left_strip.strip_name || '-(' || left_term.term_num || ')/' || right_panel.panel_name || '-' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_1, "
+                    + "\n" +
+                    "left_panel.panel_name || '-' || left_strip.strip_name || '-(' || left_term.term_num || ')/' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_2 "
+
+                    : "left_strip.strip_name || '-' || left_term.term_num || '/' || right_panel.panel_name || '-' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_1, "
+                    + "\n" +
+                    "left_panel.panel_name || '-' || left_strip.strip_name || '-' || left_term.term_num || '/' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_2 "
+                    )
+
+                    + "\n" +
+
+                    "from cable," + "\n" +
+                    "wire_terminal left_connection, " + "\n" +
+                    "wire_terminal right_connection, " + "\n" +
+
+                    "panel left_panel, " + "\n" +
+                    "panel_strip left_strip,  " + "\n" +
+                    "panel_strip_term left_term, " + "\n" +
+
+                    "panel right_panel,  " + "\n" +
+                    "panel_strip right_strip, " + "\n" +
+                    "panel_strip_term right_term, " + "\n" +
+                    "wire, " + "\n" +
+                    "panel_sub_category, " + "\n" +
+                    "panel_sub_category panel_sub_category2 " + "\n" +
+
+                    "where " + "\n" +
+                    "    left_panel.panel_id = left_connection.panel_id " + "\n" +
+                    "and left_strip.strip_id = left_connection.strip_id " + "\n" +
+                    "and left_term.term_id = left_connection.term_id " + "\n" +
+
+                    "and right_panel.panel_id = right_connection.panel_id " + "\n" +
+                    "and right_strip.strip_id = right_connection.strip_id " + "\n" +
+                    "and right_term.term_id = right_connection.term_id " + "\n" +
+
+                    "and left_panel.panel_id = left_strip.panel_id " + "\n" +
+                    "and left_panel.panel_id = left_term.panel_id " + "\n" +
+                    "and left_strip.strip_id = left_term.strip_id " + "\n" +
+
+                    "and right_panel.panel_id = right_strip.panel_id " + "\n" +
+                    "and right_panel.panel_id = right_term.panel_id " + "\n" +
+                    "and right_strip.strip_id = right_term.strip_id " + "\n" +
+
+                    "and wire.wire_id = left_connection.wire_id " + "\n" +
+                    "and wire.wire_id = right_connection.wire_id " + "\n" +
+
+                    (
+                    (listBox1.SelectedIndex == 0) ?
+                    "and left_panel.panel_sub_category  = 410  --Device Panel \n" +
+                    "and right_panel.panel_sub_category  = 110 --Junction Box \n"
+                    : "and left_panel.panel_sub_category  = 110  --Device Panel \n" +
+                    "and right_panel.panel_sub_category  = 310 --Junction Box \n"
+                    )
+
+                    +
+                    "and left_connection.cable_side = 1 " + "\n" +
+                    "and right_connection.cable_side = 2 " + "\n" +
+
+                    "and left_panel.panel_sub_category = PANEL_SUB_CATEGORY.PANEL_SUB_CATEGORY_ID " + "\n" +
+                    "and right_panel.panel_sub_category = PANEL_SUB_CATEGORY2.PANEL_SUB_CATEGORY_ID " + "\n" +
+
+                    "and wire.cable_id = cable.cable_id " + "\n" +
+
+                    $"and cable_num like '{cableNameBox.Text}%' " + "\n" +
+                    "and cable.cable_id = left_connection.cable_id " + "\n" +
+                    "and cable.cable_id = right_connection.cable_id " + "\n" +
+                    "and cable.cable_id > 1999 " + "\n" +
+                    
+                    $"and right_panel.panel_name like '{rightPanelBox.Text}%' " + "\n" +
+                    $"and left_panel.panel_name like '{leftPanelBox.Text}%' " + "\n" +
+
+                    "order by 2,3,4";//NOTE:>>>>>>>DONT PUT IN THE END A SEMICOLON HERE BECAUSE IT GIVES AN ERROR<<<<<<<<<
+
+            //Select SQL Statement
+            DataTable WiringDocuments = INtoolsExternalTool.ExecuteSelect(ConnectionString, SQLSuggestedWireEndNamingConvention);
+
+            //Checks if there are Documents under this DWG_NAME
+            if (WiringDocuments.Rows.Count > 0)
+            {
+                int index = 0;
+                dataChangePreview.DataSource = WiringDocuments;
+                dataChangePreview.Sort(dataChangePreview.Columns[1], System.ComponentModel.ListSortDirection.Ascending);
+
+                dataChangePreview.Columns[index].HeaderText = "Cable Name";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 100;
+
+                dataChangePreview.Columns[index].HeaderText = "Left Panel Type";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 100;
+
+                dataChangePreview.Columns[index].HeaderText = "Left Panel";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 150;
+
+                dataChangePreview.Columns[index].HeaderText = "Left Strip";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 150;
+
+                dataChangePreview.Columns[index].HeaderText = "Left Term";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 50;
+
+                dataChangePreview.Columns[index].HeaderText = "Right Panel Type";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 100;
+
+                dataChangePreview.Columns[index].HeaderText = "Right Panel";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 150;
+
+                dataChangePreview.Columns[index].HeaderText = "Right Strip";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 150;
+
+                dataChangePreview.Columns[index].HeaderText = "Right Term";
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 50;
+
+                dataChangePreview.Columns[index].HeaderText = "Wire Tag Side 1";
+                dataChangePreview.Columns[index].CellTemplate.Style.BackColor = System.Drawing.Color.LightGoldenrodYellow;
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 300;
+
+                dataChangePreview.Columns[index].HeaderText = "Wire Tag Side 2";
+                dataChangePreview.Columns[index].CellTemplate.Style.BackColor = System.Drawing.Color.LightGoldenrodYellow;
+                dataChangePreview.Columns[index].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataChangePreview.Columns[index++].Width = 300;
+
+                //User now can apply numbering
+                buApply.Enabled = true;
+            }
+            else
+            {
+                MessageBox.Show($"No Panel Documents found", "INTools External Tool");
+            }
+        }
+
+        private void buCANCEL_Click(object sender, EventArgs e)
+        {
+            Hide();
+            Dispose();
+            ApplicationMenu applicationMenu = new ApplicationMenu(ConnectionString);
+            applicationMenu.Show();
+        }
+
+        private void buApply_Click(object sender, EventArgs e)
+        {
+            //Update Satement from Temporary Table to Existing Table
+            string SQLCommitNumbering =
+                    "declare \n" +
+                    "v_rows number := 0; \n" +
+                    "cursor connections \n" +
+                    "is \n" +
+                    "select  distinct  " + "\n" +
+                    "cable_num, " + "\n" +
+                    "panel_sub_category.PANEL_SUB_CATEGORY_NAME left_panel_type, " + "\n" +
+                    "left_panel.panel_name left_panel, " + "\n" +
+                    "left_strip.strip_name left_strip, " + "\n" +
+                    "left_term.term_num left_term, " + "\n" +
+
+                    "panel_sub_category2.PANEL_SUB_CATEGORY_NAME right_panel_type, " + "\n" +
+                    "right_panel.panel_name right_panel, " + "\n" +
+                    "right_strip.strip_name right_strip, " + "\n" +
+                    "right_term.term_num right_term, " + "\n" +
+
+
+                    (
+                    (listBox1.SelectedIndex == 0) ?
+                    "left_strip.strip_name || '-(' || left_term.term_num || ')/' || right_panel.panel_name || '-' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_1, "
+                    + "\n" +
+                    "left_panel.panel_name || '-' || left_strip.strip_name || '-(' || left_term.term_num || ')/' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_2 "
+
+                    : "left_strip.strip_name || '-' || left_term.term_num || '/' || right_panel.panel_name || '-' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_1, "
+                    + "\n" +
+                    "left_panel.panel_name || '-' || left_strip.strip_name || '-' || left_term.term_num || '/' || right_strip.strip_name || '-' || right_term.term_num LABEL_SIDE_2 "
+                    )
+
+                    + "\n" +
+
+                    "from cable," + "\n" +
+                    "wire_terminal left_connection, " + "\n" +
+                    "wire_terminal right_connection, " + "\n" +
+
+                    "panel left_panel, " + "\n" +
+                    "panel_strip left_strip,  " + "\n" +
+                    "panel_strip_term left_term, " + "\n" +
+
+                    "panel right_panel,  " + "\n" +
+                    "panel_strip right_strip, " + "\n" +
+                    "panel_strip_term right_term, " + "\n" +
+                    "wire, " + "\n" +
+                    "panel_sub_category, " + "\n" +
+                    "panel_sub_category panel_sub_category2 " + "\n" +
+
+                    "where " + "\n" +
+                    "    left_panel.panel_id = left_connection.panel_id " + "\n" +
+                    "and left_strip.strip_id = left_connection.strip_id " + "\n" +
+                    "and left_term.term_id = left_connection.term_id " + "\n" +
+
+                    "and right_panel.panel_id = right_connection.panel_id " + "\n" +
+                    "and right_strip.strip_id = right_connection.strip_id " + "\n" +
+                    "and right_term.term_id = right_connection.term_id " + "\n" +
+
+                    "and left_panel.panel_id = left_strip.panel_id " + "\n" +
+                    "and left_panel.panel_id = left_term.panel_id " + "\n" +
+                    "and left_strip.strip_id = left_term.strip_id " + "\n" +
+
+                    "and right_panel.panel_id = right_strip.panel_id " + "\n" +
+                    "and right_panel.panel_id = right_term.panel_id " + "\n" +
+                    "and right_strip.strip_id = right_term.strip_id " + "\n" +
+
+                    "and wire.wire_id = left_connection.wire_id " + "\n" +
+                    "and wire.wire_id = right_connection.wire_id " + "\n" +
+
+                    (
+                    (listBox1.SelectedIndex == 0) ?
+                    "and left_panel.panel_sub_category  = 410  --Device Panel \n" +
+                    "and right_panel.panel_sub_category  = 110 --Junction Box \n"
+                    : "and left_panel.panel_sub_category  = 110  --Device Panel \n" +
+                    "and right_panel.panel_sub_category  = 310 --Junction Box \n"
+                    )
+
+                    +
+                    "and left_connection.cable_side = 1 " + "\n" +
+                    "and right_connection.cable_side = 2 " + "\n" +
+
+                    "and left_panel.panel_sub_category = PANEL_SUB_CATEGORY.PANEL_SUB_CATEGORY_ID " + "\n" +
+                    "and right_panel.panel_sub_category = PANEL_SUB_CATEGORY2.PANEL_SUB_CATEGORY_ID " + "\n" +
+
+                    "and wire.cable_id = cable.cable_id " + "\n" +
+
+                    $"and cable_num like '{cableNameBox.Text}%' " + "\n" +
+                    "and cable.cable_id = left_connection.cable_id " + "\n" +
+                    "and cable.cable_id = right_connection.cable_id " + "\n" +
+                    "and cable.cable_id > 1999 " + "\n" +
+
+                    $"and right_panel.panel_name like '{rightPanelBox.Text}%' " + "\n" +
+                    $"and left_panel.panel_name like '{leftPanelBox.Text}%' " + "\n" +
+
+                    "; \n" +
+                    "begin \n" +
+                    "for everywire in connections loop \n" +
+                    "update wire \n" +
+                    "set wire_label_side1 = replace(everywire.LABEL_SIDE_1,' ',''), \n" +
+                    "    wire_label_side2 = replace(everywire.LABEL_SIDE_2,' ','') \n" +
+                    "where wire_id = everywire.wire_id; \n" +
+                    "v_rows := v_rows + 1; \n" +
+                    "end loop; \n" +
+                    "end; \n";
+
+            //Commit Numbering to Database
+            INtoolsExternalTool.ExecuteUpdate(ConnectionString, SQLCommitNumbering);
+            INtoolsExternalTool.Datalogger(SQLCommitNumbering, "Wire End Naming Convention");
+
+            MessageBox.Show("Status: Wiring Documents Renaming is Completed Successfully", "Wiring Documents Renaming Tool Final Status");
+
+            Hide();
+            Dispose();
+            ApplicationMenu applicationMenu = new ApplicationMenu(ConnectionString);
+            applicationMenu.Show();
+        }
+
+        private void documentNameBox_TextChanged(object sender, EventArgs e)
+        {
+            buApply.Enabled = false;
+
+            if ( (
+                    string.IsNullOrEmpty(leftPanelBox.Text) && string.IsNullOrEmpty(rightPanelBox.Text) && string.IsNullOrEmpty(cableNameBox.Text)
+                 ) 
+                || listBox1.SelectedIndex == -1 )
+                buPreview.Enabled = false;
+            else
+                buPreview.Enabled = true;
+        }
+
+        private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            buApply.Enabled = false;
+
+            if (string.IsNullOrEmpty(leftPanelBox.Text) && string.IsNullOrEmpty(rightPanelBox.Text) && string.IsNullOrEmpty(cableNameBox.Text))
+                buPreview.Enabled = false;
+            else
+                buPreview.Enabled = true;
+        }
+
+        private void WireEndNamingConventionButton_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            Hide();
+            Dispose();
+            ApplicationMenu applicationMenu = new ApplicationMenu(ConnectionString);
+            applicationMenu.Show();
+        }
+    }
+}
